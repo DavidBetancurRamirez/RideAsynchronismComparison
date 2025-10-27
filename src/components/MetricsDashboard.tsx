@@ -12,6 +12,10 @@ import {
 } from "recharts";
 import { getMetrics, metricSummaryInitialValue, type MetricSummary } from "../services/api";
 
+const consumers = ["DriverMatcher", "FareCalculator"];
+const providers = ["sqs", "rabbitmq"];
+const origins = ["sqs", "rabbitmq"];
+
 const MetricsDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<MetricSummary>(metricSummaryInitialValue);
   const [loading, setLoading] = useState(false);
@@ -32,13 +36,11 @@ const MetricsDashboard: React.FC = () => {
   };
 
   // Datos transformados para gráficos
-  const consumers = ["DriverMatcher", "FareCalculator"];
   const consumerData = consumers.map((c) => ({
     consumer: c,
     avg_latency: metrics.by_consumer[c]?.avg_latency ?? 0,
   }));
 
-  const providers = ["sqs", "rabbitmq"];
   const providerData = providers.map((p) => ({
     provider: p,
     avg_latency: metrics.by_provider[p]?.avg_latency ?? 0,
@@ -47,12 +49,22 @@ const MetricsDashboard: React.FC = () => {
   const comparisonData = metrics.comparison_by_messageId.length
     ? metrics.comparison_by_messageId.map((record) => {
         const newRecord: any = { messageId: record.messageId };
-        Object.entries(record).forEach(([origin, consumers]) => {
+
+        // Inicializa todos los posibles valores en 0
+        consumers.forEach((c) =>
+          origins.forEach((o) => (newRecord[`${c}_${o}`] = 0))
+        );
+
+        // Rellena solo los que vienen en los datos reales
+        Object.entries(record).forEach(([origin, consumersData]) => {
           if (origin === "messageId") return;
-          Object.entries(consumers as Record<string, number>).forEach(([consumer, latency]) => {
-            newRecord[`${consumer}_${origin}`] = latency;
-          });
+          Object.entries(consumersData as Record<string, number>).forEach(
+            ([consumer, latency]) => {
+              newRecord[`${consumer}_${origin}`] = latency;
+            }
+          );
         });
+
         return newRecord;
       })
     : [
